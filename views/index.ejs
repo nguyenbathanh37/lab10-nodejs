@@ -15,7 +15,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js" integrity="sha512-xbQU0+iHqhVt7VIXi6vBJKPh3IQBF5B84sSHdjKiSccyX/1ZI7Vnkt2/8y8uruj63/DVmCxfUNohPNruthTEQA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"
+    integrity="sha512-xbQU0+iHqhVt7VIXi6vBJKPh3IQBF5B84sSHdjKiSccyX/1ZI7Vnkt2/8y8uruj63/DVmCxfUNohPNruthTEQA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -92,81 +94,141 @@
       <div class="col-md-7">
         <div class="rounded border mt-5 mb-3">
           <h4 class="text-primary text-center my-5">Danh sách người dùng trực tuyến</h4>
-          <p style="padding: 0 24px">Số người online: <strong class="badge badge-danger badge-pill">5</strong></p>
-          <div class="people">
-            <div class="user">
-              <div class="avatar">C</div>
-              <div class="user-info">
-                <div class="user-name">Phạm Công Chánh</div>
-                <div class="online">Truy cập lúc: 16:45'</div>
-              </div>
-              <div class="status">
-                <div class="badge badge-success badge-pill">Đang rảnh</div>
-              </div>
-            </div>
-
-            <div class="user">
-              <div class="avatar">D</div>
-              <div class="user-info">
-                <div class="user-name">Vũ Đình Duy</div>
-                <div class="online">Truy cập lúc: 16:45'</div>
-              </div>
-              <div class="status">
-                <div class="badge badge-success badge-pill">Đang rảnh</div>
-              </div>
-
-            </div>
-
-            <div class="user">
-              <div class="avatar">K</div>
-              <div class="user-info">
-                <div class="user-name">Trần Vũ Khoa</div>
-                <div class="online">Truy cập lúc: 16:45'</div>
-              </div>
-              <div class="status">
-                <div class="badge badge-warning badge-pill">Đang bận</div>
-              </div>
-            </div>
-
-            <div class="user">
-              <div class="avatar">P</div>
-              <div class="user-info">
-                <div class="user-name">Quách Phạm</div>
-                <div class="online">Truy cập lúc: 16:45'</div>
-              </div>
-              <div class="status">
-                <div class="badge badge-success badge-pill">Đang rảnh</div>
-              </div>
-            </div>
-
-            <div class="user">
-              <div class="avatar">K</div>
-              <div class="user-info">
-                <div class="user-name">Lê Duy Khang</div>
-                <div class="online">Truy cập lúc: 16:45'</div>
-              </div>
-              <div class="status">
-                <div class="badge badge-warning badge-pill">Đang bận</div>
-              </div>
-            </div>
+          <p style="padding: 0 24px">Số người online: <strong id="online-count"
+              class="badge badge-danger badge-pill">0</strong></p>
+          <div id="user-list" class="people">
           </div>
         </div>
         <p class="small">Danh sách này cần được cập nhật tự động mỗi khi có người dùng đăng nhập hoặc đăng xuất/thoát.
           Ngoài ra trạng thái của mỗi người dùng cũng cần được cập nhật mỗi khi họ tham gia hoặc rời một cuộc trò
           chuyện.</p>
-        <p class="small">Để cho đơn giản, trang web chỉ cần hỗ trợ với mỗi người vào một thời điểm, không thể chat với người có trạng thái là <strong>đang bận</strong>.</p>
+        <p class="small">Để cho đơn giản, trang web chỉ cần hỗ trợ với mỗi người vào một thời điểm, không thể chat với
+          người có trạng thái là <strong>đang bận</strong>.</p>
       </div>
     </div>
 
-    <div id="online-notification" class="alert alert-success d-inline position-fixed small" style="bottom: 20px; left: 20px">
+    <div id="online-notification" class="alert alert-success d-inline position-fixed small"
+      style="bottom: 20px; left: 20px">
       <strong>Trần Quang Trí</strong> vừa mới online
     </div>
-    <div id="offline-notification" class="alert alert-danger d-inline position-fixed small" style="bottom: 20px; right: 20px">
+    <div id="offline-notification" class="alert alert-danger d-inline position-fixed small"
+      style="bottom: 20px; right: 20px">
       <strong>Trần Quang Trí</strong> đã thoát khỏi ứng dụng
     </div>
 
     <script>
-      window.onload
+      let socket
+      let username
+      let onlineUsers = []
+
+      window.onload = () => {
+        console.log('mở kết nối tới server');
+
+        socket = io()
+        socket.on('connect', handleConnectionSuccess)
+        socket.on('disconnect', () => console.log('Đã mất kết nối thành công'))
+        socket.on('list-users', handleUserList)
+        socket.on('new-users', handleNewUser)
+        socket.on('user-leave', handleUserLeave)
+        socket.on('register-name', handleRegisterUsername)
+
+        // ẩn thông báo khi trang vừa load
+        $('#online-notification strong').fadeTo(10, 0)
+        $('#offline-notification strong').fadeTo(10, 0)
+
+      }
+
+      function handleConnectionSuccess() {
+        console.log('Đã kết nối thành công với id ' + socket.id)
+        setTimeout(() => {
+          if (!username) {
+            username = prompt('Nhập tên của bạn')
+          }
+          // gửi tên qua server
+          socket.emit('register-name', username)
+        }, 500)
+      }
+
+      function handleUserList(users) {
+        console.log('Đã nhận danh sách user:')
+        users.forEach(user => {
+          console.log(user)
+          if (user.id !== socket.id) {
+            onlineUsers.push(user)
+            displayUser(user)
+          }
+        })
+      }
+
+      function handleNewUser(user) {
+        console.log('Một người mới đã được thêm')
+        console.log(user)
+        onlineUsers.push(user)
+      }
+
+      function handleUserLeave(id) {
+        let user = onlineUsers.find(u => u.id === id)
+
+        onlineUsers = onlineUsers.filter(user => user.id !== id)
+        console.log(`User ${id} đã thoát, Ngoài bạn ra chỉ còn ${onlineUsers.length} user trong phòng`);
+        removeUser(id)
+        notifyOffline(user.username)
+      }
+
+      function handleRegisterUsername(data) {
+        let { id, username } = data
+        let user = onlineUsers.find(u => u.id == id)
+        if (!user) {
+          return console.log('Không tìm thấy user')
+        }
+
+        user.username = username
+        console.log(`Client ${id} đã đăng ký tên ${username}`);
+
+        displayUser(user)
+
+        notifyOnline(username)
+      }
+
+      function displayUser(user) {
+        let status = user.free ? '<div class="badge badge-success badge-pill">Đang rảnh</div>' : '<div class="badge badge-warning badge-pill">Đang bận</div>'
+        let userDiv = $(`
+        <div id="${user.id}" class="user">
+              <div class="avatar">${user.username[0]}</div>
+              <div class="user-info">
+                <div class="user-name">${user.username}</div>
+                <div class="online">Truy cập lúc: ${user.loginAt}'</div>
+              </div>
+              <div class="status">
+                ${status}
+              </div>
+            </div>
+        `)
+
+        $('#user-list').append(userDiv)
+        $('#online-count').html($('#user-list .user').length)
+      }
+
+      function removeUser(id) {
+        $(`#${id}`).remove()
+        $('#online-count').html($('#user-list .user').length)
+      }
+
+      function notifyOnline(username) {
+        $('#online-notification strong').html(username)
+        $('#online-notification strong').fadeTo(2000, 1)
+        setTimeout(() => {
+          $('#online-notification strong').fadeTo(2000, 0)
+        }, 4000)
+      }
+
+      function notifyOffline(username) {
+        $('#offline-notification strong').html(username)
+        $('#offline-notification strong').fadeTo(2000, 1)
+        setTimeout(() => {
+          $('#offline-notification strong').fadeTo(2000, 0)
+        }, 4000)
+      }
     </script>
 </body>
 
